@@ -1,0 +1,55 @@
+#+TITLE: pinot
+#+AUTHOR: Yoshinari Nomura
+#+EMAIL:
+#+DATE:
+#+OPTIONS: H:3 num:2 toc:nil
+#+OPTIONS: ^:nil @:t \n:nil ::t |:t f:t TeX:t
+#+OPTIONS: skip:nil
+#+OPTIONS: author:t
+#+OPTIONS: email:nil
+#+OPTIONS: creator:nil
+#+OPTIONS: timestamp:nil
+#+OPTIONS: timestamps:nil
+#+OPTIONS: d:nil
+#+OPTIONS: tags:t
+
+* pinot とは
+  pinot は，ESP32 + MicroPython で作る IoT デバイスのためのプロジェクト
+  テンプレートです．主な役割は，デバイスをインターネット接続する前の初期
+  設定を簡単にすることです．
+
+  最新版は以下から入手可能です:
+  + https://github.com/yoshinari-nomura/pinot
+
+* 動作概要
+** Wi-Fi の初期設定
+   pinot は，デバイス上に書換可能な不揮発のファイルシステムを持っていて，
+   ~/config/settings.json~ に Wi-Fi やその他の設定情報を保存できます．
+
+   pinot に電源を投入すると， ~/config/settings.json~ に従って，Wi-Fi に
+   接続しようとします．
+
+   Wi-Fi が未設定か接続に失敗した場合には，自身が Wi-Fi のアクセスポイントと
+   設定用の Web サーバになります．
+
+   PC の Web ブラウザ等から下記アクセスポイントに接続して設定変更が可能です．
+   (SSID の xxxxxx の部分は，デバイスによって異なります)
+   : Wi-Fi SSID: pinot-xxxxxx
+   : Wi-Fi Password: pinot123
+   : 設定用 URL: http://192.168.4.1/
+
+** Wi-Fi の再設定
+   Wi-Fi を既に設定済みの場合，設定済のアクセスポイントに自動で接続して
+   しまうので，pinot をアクセスポイントモードにできません．
+
+   そのような場合には，電源投入後 5秒以内に pinot の BOOT ボタン (GPIO0)
+   を押すことで，強制的にアクセスポイントモードにできます．
+
+   BOOT ボタンを押すタイミングは，pinot の電源投入後 1 から 5秒以内です．
+   投入前から押しては駄目です．
+
+* 外部プロジェクトのファイル
+  + lib/sht31.py ::
+    https://github.com/kfricke/micropython-sht31
+  + lib/ssd1306.py ::
+    https://github.com/micropython/micropython/blob/master/drivers/display/ssd1306.py

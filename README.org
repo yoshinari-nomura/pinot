@@ -1,0 +1,58 @@
+#+TITLE: pinot
+#+AUTHOR: Yoshinari Nomura
+#+EMAIL:
+#+DATE:
+#+OPTIONS: H:3 num:2 toc:nil
+#+OPTIONS: ^:nil @:t \n:nil ::t |:t f:t TeX:t
+#+OPTIONS: skip:nil
+#+OPTIONS: author:t
+#+OPTIONS: email:nil
+#+OPTIONS: creator:nil
+#+OPTIONS: timestamp:nil
+#+OPTIONS: timestamps:nil
+#+OPTIONS: d:nil
+#+OPTIONS: tags:t
+
+[[file:README-ja.org][日本語(Japanese)]]
+
+* What is pinot?
+  pinot is a project-template for IoT devices built with ESP32 +
+  MicroPython. It simplifys the initial setup of the device before
+  connecting it to the Internet.
+
+  You can get the latest version from:
+  + https://github.com/yoshinari-nomura/pinot
+
+* How works?
+** How to Configure Wi-Fi
+   pinot uses the non-volatile file system on the device, and stores
+   Wi-Fi and other settings in ~/config/settings.json~.
+
+   When you power on pinot, it will try to connect to Wi-Fi according to
+   ~/config/settings.json~.
+
+   If Wi-Fi is not configured yet, or fails to connect, pinot will
+   become a Wi-Fi access-point and a web server to serve config page.
+
+   You can change the settings by connecting to the following access
+   point from your PC's Web browser:
+   : Wi-Fi SSID: pinot-xxxxxx
+   : Wi-Fi Password: pinot123
+   : 設定用 URL: http://192.168.4.1/
+
+** How to Reconfigure Wi-Fi
+   In case you have already configured Wi-Fi, pinot cannot be
+   access-point mode because it will automatically connect to the
+   configured access point.
+
+   In such a case, pinot can be forced into the access-point mode by
+   pressing the BOOT button (GPIO0) within 5 seconds after power-on.
+
+   Do not press BOOT button even before the power-on.  Press BOOT button
+   within 1 to 5 seconds *after* the power-on.
+
+* Files from ohter projects
+  + lib/sht31.py ::
+    https://github.com/kfricke/micropython-sht31
+  + lib/ssd1306.py ::
+    https://github.com/micropython/micropython/blob/master/drivers/display/ssd1306.py

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Configurations</title>
+  </head>
+  <body>
+    <script type="text/javascript">
+      function load_json(form_id) {
+        var req = new XMLHttpRequest();
+
+        req.open("GET", "/config/settings.json")
+
+        req.onload = () => {
+          console.log(req.status);
+          json_config = JSON.parse(req.responseText);
+          document.querySelectorAll("input").forEach(input =>
+            input.value = json_config[input.name] || ""
+          );
+          document.querySelectorAll("td.current").forEach(td =>
+            td.innerText = json_config[td.getAttribute("name")] || ""
+          );
+        };
+        req.send()
+      }
+
+      function save_json(form_id) {
+        var form = document.getElementById(form_id);
+        var form_data = new FormData(form);
+        var json = JSON.stringify(Object.fromEntries(form_data));
+
+        console.log(json);
+
+        var req = new XMLHttpRequest();
+        req.open("POST", form.action)
+        req.setRequestHeader("Content-Type", "application/json");
+
+        req.onload = () => {
+          console.log(req.status);
+          if (req.status == 201) {
+            alert("Update successfully");
+            load_json("config_form");
+          } else {
+            alert("Update failed. See JavaScript console log for details");
+          }
+        };
+
+        req.onerror = () => {
+          console.log(req.status);
+          alert("Update failed. See JavaScript console log for details");
+        };
+
+        req.send(json);
+      }
+
+      window.onload = () => {
+        load_json("config_form");
+      };
+    </script>
+
+    <h1>Configuration</h1>
+    <form id="config_form" action="/config/settings" method="post">
+      <table border="1" style="border-collapse: collapse">
+        <thead><tr><th>Name</th><th>Current</th><th>Update</th></tr></thead>
+        <tr><td>Wi-Fi SSID          </td><td class="current" name="wifi_ssid"        ></td><td><input type="text" value="" name="wifi_ssid"        ></td></tr>
+        <tr><td>Wi-Fi password      </td><td class="current" name="wifi_password"    ></td><td><input type="text" value="" name="wifi_password"    ></td></tr>
+        <tr><td>ThingSpeak API key  </td><td class="current" name="thingspeak_apikey"></td><td><input type="text" value="" name="thingspeak_apikey"></td></tr>
+        <tr><td>MQTT name           </td><td class="current" name="mqtt_broker_name" ></td><td><input type="text" value="" name="mqtt_broker_name" ></td></tr>
+        <tr><td>MQTT id             </td><td class="current" name="mqtt_client_name" ></td><td><input type="text" value="" name="mqtt_client_name" ></td></tr>
+        <tr><td>MQTT user           </td><td class="current" name="mqtt_user"        ></td><td><input type="text" value="" name="mqtt_user"        ></td></tr>
+        <tr><td>MQTT password       </td><td class="current" name="mqtt_password"    ></td><td><input type="text" value="" name="mqtt_password"    ></td></tr>
+        <tr><td>MQTT publish topic  </td><td class="current" name="mqtt_pub_topic"   ></td><td><input type="text" value="" name="mqtt_pub_topic"   ></td></tr>
+      </table>
+    </form>
+    <button onclick="save_json('config_form');">Update</button>
+  </body>
+</html>
