@@ -13,7 +13,7 @@ class Request:
         self.path         = None
         self._raw_content = raw_content
 
-        print("First-Line: ", first_line)
+        print("First-Line:", first_line)
 
         match = re.match('([^ ]+) +([^ ]+) ', first_line.decode())
         if match:
@@ -72,7 +72,7 @@ class ConfigServer:
 
         elif req.match('POST', '/config/settings'):
             print("POST /config/settings")
-            print("DATA: ", req.dict_data)
+            print("DATA:", req.dict_data)
 
             config = JsonConfig(name = 'settings')
             config.dict.update(req.dict_data)

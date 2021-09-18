@@ -22,10 +22,10 @@ class WiFi:
     def start_station(self, ssid, password, timeout = 10):
         self._sta = network.WLAN(network.STA_IF)
         if self._sta.isconnected():
-            print('network config: ', self._sta.ifconfig())
+            print('network config:', self._sta.ifconfig())
             return True
 
-        print('Connecting to network ', ssid, '...')
+        print('Connecting to network', ssid, '...')
         self._sta.active(True)
         self._sta.connect(ssid, password)
 
@@ -33,9 +33,9 @@ class WiFi:
         while count < timeout:
             sleep(1)
             count += 1
-            print("Waiting Wi-Fi ", count)
+            print("Waiting Wi-Fi", count)
             if self._sta.isconnected():
-                print('Connected: ', self._sta.ifconfig())
+                print('Connected:', self._sta.ifconfig())
                 return True
         print('Failed.')
         self.stop_station()
