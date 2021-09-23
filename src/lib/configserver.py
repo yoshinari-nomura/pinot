@@ -98,12 +98,12 @@ class ConfigServer:
         client.send('\r\n')
 
         try:
-            file = open(path, 'r')
-            while True:
-                s = file.read(512)
-                if len(s) <= 0:
-                    break
-                client.send(s)
+            with open(path, 'r') as file:
+                while True:
+                    s = file.read(512)
+                    if len(s) <= 0:
+                        break
+                    client.send(s)
         except:
             pass
 
