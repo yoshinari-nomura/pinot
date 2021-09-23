@@ -19,6 +19,10 @@ class WiFi:
     def sta(self):
         return self._sta
 
+    def hostname(self):
+        nic = self._ap or self._sta or network.WLAN()
+        return 'pinot-' + str(hexlify(nic.config('mac'))[6:], 'ascii')
+
     def start_station(self, ssid, password, timeout = 10):
         self._sta = network.WLAN(network.STA_IF)
         if self._sta.isconnected():
