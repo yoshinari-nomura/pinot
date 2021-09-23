@@ -52,7 +52,7 @@ def main_thread():
             error += 1
         sent += 1
         echo("Temp:{:.1f}".format(measures[0]))
-        echo("Error/Sent {}/{}".format(error, sent), lineno=1)
+        echo("E/S {}/{}".format(error, sent), lineno=1)
         time.sleep(60)
 
 ################
