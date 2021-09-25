@@ -2,6 +2,38 @@
 <html>
   <head>
     <title>Configurations</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style type="text/css">
+      body {
+        background-color: lavender;
+        color: #333;
+      }
+      table {
+        // top right bottom left;
+        margin: 0px 2px 2px 2px;
+      }
+      td, th {
+        padding: 0px 5px 1px 5px;
+      }
+      .hint {
+        font-size: 80%;
+        display: inline-block;
+        text-align:center;
+        vertical-align: middle;
+        line-height: 1em;
+        width: 1em;
+        height: 1em;
+        border-radius: 50%;
+        color: black;
+        background: white;
+        border: solid 1px black;
+      }
+      input {
+        outline:none;
+        border: none;
+        margin: 1px;
+      }
+    </style>
   </head>
   <body>
     <script type="text/javascript">
@@ -57,7 +89,7 @@
       };
     </script>
 
-    <h1>Configuration</h1>
+    <h2>Configuration</h2>
     <form id="config_form" action="/config/settings" method="post">
       <table border="1" style="border-collapse: collapse">
         <thead><tr><th>Name</th><th>Current</th><th>Update</th></tr></thead>
