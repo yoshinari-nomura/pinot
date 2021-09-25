@@ -75,8 +75,8 @@ class WiFi:
 
     def start(self, json_config):
         try:
-            ssid = json_config.dict['wifi_ssid']
-            password = json_config.dict['wifi_password']
+            ssid = json_config.get('wifi_ssid')
+            password = json_config.get('wifi_password')
             if not self.start_station(ssid, password):
                 self.stop_station()
                 pass

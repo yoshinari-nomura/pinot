@@ -30,7 +30,7 @@ def main_thread():
     config = JsonConfig()
     ds = ds18x20.DS18X20(onewire.OneWire(Pin(32)))
     roms = ds.scan()
-    thingspeak = ThingSpeak(config.dict.get('thingspeak_apikey') or '')
+    thingspeak = ThingSpeak(config.get('thingspeak_apikey') or '')
 
     sent, error = 0, 0
     while True:
