@@ -27,7 +27,7 @@ def echo(msg, lineno=0):
 
 def main_thread():
     import onewire, ds18x20
-    config = JsonConfig(name = 'settings')
+    config = JsonConfig()
     ds = ds18x20.DS18X20(onewire.OneWire(Pin(32)))
     roms = ds.scan()
     thingspeak = ThingSpeak(config.dict.get('thingspeak_apikey') or '')
@@ -60,7 +60,7 @@ def main_thread():
 
 def config_thread():
     from configserver import ConfigServer
-    httpd = ConfigServer(JsonConfig(name = 'settings'))
+    httpd = ConfigServer(JsonConfig())
     httpd.serv()
 
 ################
