@@ -13,6 +13,9 @@ class JsonConfig:
     def dict(self):
         return self._dict
 
+    def get(self, key):
+        return self._dict.get(key)
+
     def reload(self):
         try:
             with open(self._path, 'r') as json:
