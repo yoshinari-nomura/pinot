@@ -38,7 +38,7 @@
    point from your PC's Web browser:
    : Wi-Fi SSID: pinot-xxxxxx
    : Wi-Fi Password: pinot123
-   : 設定用 URL: http://192.168.4.1/
+   : URL: http://192.168.4.1/
 
 ** How to Reconfigure Wi-Fi
    In case you have already configured Wi-Fi, pinot cannot be
