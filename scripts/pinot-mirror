@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+#
+# Mirror local directory to MicroPython board and vice versa.
+#
+# Usage: pinot-mirror [-p PORT] [-d] SRC DEST
+#   -d        Show SHA1 digests for each file (for debug).
+#   -h        Show this message.
+#   -p PORT   Set name of serial PORT for connected board.
+#   SRC, DEST Existing local directory or "ampy:"
+#
+# CAVEAT: pinot-mirror removes extraneous files from DEST.
+#
+
+################################################################
+## file-system commands
+
+# XXX: file names must not have white spaces.
+#      Both source and destination must not be "ampy:" at the same time.
+
+function isampy() {
+  local fullpath="$1"
+
+  case "$fullpath" in
+    ampy:*)
+      return 0 ;;
+    *)
+      return 1 ;;
+  esac
+}
+
+function strip_ampy() {
+  local fullpath="$1"
+  echo "$fullpath" | sed 's/^ampy://'
+}
+
+function fscmd_mkdir() {
+  local dst_entry="$1"
+
+  if isampy "$dst_entry"; then
+    echo "ampy mkdir --exists-okay $(strip_ampy $dst_entry)"
+  else
+    echo "mkdir -p $dst_entry"
+  fi
+}
+
+function fscmd_rmrf() {
+  local dst_entry="$1"
+
+  if isampy "$dst_entry"; then
+    echo "ampy rmdir --missing-okay $(strip_ampy $dst_entry)"
+  else
+    echo "rm -rf $dst_entry"
+  fi
+}
+
+function fscmd_cp() {
+  local src_entry="$1" dst_entry="$2"
+
+  if isampy "$src_entry"; then
+    echo "ampy get $(strip_ampy $src_entry) $dst_entry"
+
+  elif isampy "$dst_entry"; then
+    echo "ampy put $src_entry $(strip_ampy $dst_entry)"
+
+  else
+    echo "cp -p $src_entry $dst_entry"
+  fi
+}
+
+function fscmd_rm() {
+  local dst_entry="$1"
+
+  if isampy "$dst_entry"; then
+    echo "ampy rm $(strip_ampy $dst_entry)"
+  else
+    echo "rm -f $dst_entry"
+  fi
+}
+
+################################################################
+## make digest table from using ampy and some python scripts.
+
+NONE='0000000000000000000000000000000000000000'
+DIGEST_SCRIPT="$(cd $(dirname $0); pwd)/digest-files.py"
+PYTHON=python3
+
+# make digest from local directory or MicroPython board.
+function make_file_digests() {
+  local dir="$1"
+
+  if isampy "$dir"; then
+    # XXX: always make digest from / directory.
+    # get digest from board and replace CRLF to LF
+    ampy run "$DIGEST_SCRIPT" | sed 's!\r$!!'
+  else
+    # get digest from local directory
+    (cd "$dir"; "$PYTHON" "$DIGEST_SCRIPT" .)
+  fi
+}
+
+function make_diff_table() {
+  local src="$1" dst="$2"
+
+  join  -j 2 -a 1 -a 2 -e "$NONE" -o '1.1 2.1 0' \
+        <(make_file_digests "$src" | sort -k 2 | sed 's! [.]/! /!') \
+        <(make_file_digests "$dst" | sort -k 2 | sed 's! [.]/! /!')
+}
+
+function isdir() {
+  echo "$1" | grep -q '/$'
+}
+
+function clean_path() {
+  local dir="$1" entry="$2"
+  echo "$dir/$entry" | sed 's!//*!/!g; s!/$!!'
+}
+
+################################################################
+## operations
+
+function do_mirror() {
+  local src="$1" dst="$2"
+
+  if isampy "$src" && isampy "$dst"; then
+    die "Both source and destination must not be board"
+  fi
+
+  diff_table=$(make_diff_table "$src" "$dst")
+
+  if [ -n "$DEBUG" ]; then
+    cat <<< "$diff_table"
+  fi
+
+  # XXX: entry should not have whitespaces
+  while read -r src_sha1 dst_sha1 entry
+  do
+    src_entry=$(clean_path "$src" "$entry")
+    dst_entry=$(clean_path "$dst" "$entry")
+
+    if [ "$src_sha1" = "$dst_sha1" ]; then
+      continue
+    fi
+
+    if isdir "$entry"; then
+      if [ "$src_sha1" = "$NONE" ]; then
+        fscmd_rmrf "$dst_entry"
+      fi
+      if [ "$dst_sha1" = "$NONE" ]; then
+        fscmd_mkdir "$dst_entry"
+      fi
+    else
+      if [ "$src_sha1" = "$NONE" ]; then
+        fscmd_rm "$dst_entry"
+      else
+        fscmd_cp "$src_entry" "$dst_entry"
+      fi
+    fi
+  done <<< "$diff_table"
+}
+
+################################################################
+## command line helpers.
+
+function die() {
+  echo "Error: $1" >&2
+  exit 1
+}
+
+function usage() {
+  echo 'Mirror local directory to MicroPython board and vice versa.'
+  echo ''
+  echo 'Usage: pinot-mirror [-p PORT] [-d] SRC DEST'
+  echo '  -d        Show SHA1 digests for each file (for debug).'
+  echo '  -h        Show this message.'
+  echo '  -p PORT   Set name of serial PORT for connected board.'
+  echo '  SRC, DEST Existing local directory or "ampy:"'
+  echo ''
+  echo 'CAVEAT: pinot-mirror removes extraneous files from DEST.'
+} >&2
+
+################################################################
+## check command line args
+
+while getopts "dhp:" flag
+do
+  case $flag in
+    # getopts sets '?' to flag on error.
+    \?|h) OPT_ERROR=1 ;;
+    d)    DEBUG=1 ;;
+    p)    OPT_PORT="$OPTARG" ;;
+  esac
+done
+shift $(( $OPTIND - 1 ))
+
+# set default port
+if [ -n "$OPT_PORT" ]; then
+  export AMPY_PORT="$OPT_PORT"
+fi
+
+# check unknown option and count args.
+if [ "$OPT_ERROR" = 1 -o $# -ne 2 ]; then
+  usage
+  exit 1
+fi
+
+source="$1" dest="$2"
+
+if isampy "$source" && isampy "$dest"; then
+  die "Both source and destination must not be board"
+fi
+
+if ! isampy "$source" && test ! -d "$source"; then
+  die "No such directory: $source"
+fi
+
+if ! isampy "$dest" && test ! -d "$dest"; then
+  die "No such directory: $dest"
+fi
+
+################################################################
+## do it
+
+do_mirror "$source" "$dest"

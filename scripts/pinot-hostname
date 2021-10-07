@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#
+# Show pinot hostname of the board
+#
+# Usage: pinot-hostname [-p PORT]
+#   -p PORT   Set name of serial PORT for connected board.
+
+function usage() {
+  echo "Show pinot hostname of the board"
+  echo ""
+  echo "Usage: pinot-hostname [-p PORT]"
+  echo "  -p PORT   Set name of serial PORT for connected board."
+} >&2
+
+while getopts "dhp:" flag
+do
+  case $flag in
+    # getopts sets '?' to flag on error.
+    \?|h) OPT_ERROR=1 ;;
+    d)    DEBUG=1 ;;
+    p)    OPT_PORT="$OPTARG" ;;
+  esac
+done
+shift $(( $OPTIND - 1 ))
+
+# set default port
+if [ -n "$OPT_PORT" ]; then
+  export AMPY_PORT="$OPT_PORT"
+fi
+
+# check unknown option and count args.
+if [ "$OPT_ERROR" = 1 -o $# -ne 0 ]; then
+  usage
+  exit 1
+fi
+
+ampy run <(cat <<EOF
+import network
+import binascii
+print('pinot-' + str(binascii.hexlify(network.WLAN().config('mac'))[6:], 'ascii'))
+EOF
+     ) | sed 's/\r$//'
