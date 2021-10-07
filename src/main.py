@@ -1,94 +1,157 @@
-from jsonconfig import JsonConfig
-from connection import WiFi
-from machine import Pin, SoftI2C
-import time
-import ssd1306
-import _thread
-from thingspeak import ThingSpeak
+# Sample main.py
 
 ################
-# Settings for SSD1306 OLED Display
+# Interface to small I2C SSD1306 OLED display
 
-i2c = SoftI2C(scl=Pin(22), sda=Pin(21))
-disp = ssd1306.SSD1306_I2C(128, 32, i2c, addr=0x3c)
-# disp = None
+class PinotDisplay:
+    """
+    Interface to small I2C display
+    """
+    def __init__(self, i2c = None, addr = None):
+        """
+        Initialize a display.
+        """
 
-def echo(msg, lineno=0):
-    global disp
-    print(msg)
-    if disp is not None:
-        if lineno == 0:
-            disp.fill(0)
-        disp.text(msg, 0, lineno * 10, 1)
-        disp.show()
+        from ssd1306 import SSD1306_I2C
+
+        if i2c == None:
+            raise ValueError('I2C required')
+        self.i2c  = i2c
+        self.addr = addr
+
+        if addr is not None:
+            self.disp = SSD1306_I2C(128, 32, i2c, addr)
+        else:
+            self.disp = SSD1306_I2C(128, 32, i2c)
+
+    def echo(self, msg, lineno=0):
+        print(msg)
+        if self.disp is not None:
+            if lineno == 0:
+                self.disp.fill(0)
+            self.disp.text(msg, 0, lineno * 10, 1)
+            self.disp.show()
+
+################
+# Interface to some I2C sensor
+
+class PinotSensor:
+    """
+    Interface to some I2C sensor
+    """
+    def __init__(self, i2c = None, addr = None):
+        """
+        Initialize a sensor.
+        """
+        from bh1750 import BH1750
+
+        if i2c == None:
+            raise ValueError('I2C required')
+        self.i2c  = i2c
+        self.addr = addr
+
+        if addr is not None:
+            self.thing = BH1750(i2c, addr)
+        else:
+            self.thing = BH1750(i2c)
+
+    def get_value(self):
+        return self.thing.lux()
 
 ################
 # main thread
 
 def main_thread():
-    import onewire, ds18x20
+    print("main_thread start")
+    from thingspeak import ThingSpeak
+    from jsonconfig import JsonConfig
+    import time
+    import mqtt
+
+    global disp
+    global i2c
+
     config = JsonConfig()
-    ds = ds18x20.DS18X20(onewire.OneWire(Pin(32)))
-    roms = ds.scan()
-    thingspeak = ThingSpeak(config.get('thingspeak_apikey') or '')
+    ths_apikey = (config.get('thingspeak_apikey') or '')
+    mqtt_topic = (config.get('mqtt_pub_topic') or '')
+
+    thing = PinotSensor(i2c)
+
+    if mqtt_topic != '':
+        mqtt_client = mqtt.mqtt_create_client(config)
+        mqtt_client.connect()
+
+    if ths_apikey != '':
+        ths_client = ThingSpeak(ths_apikey)
 
     sent, error = 0, 0
     while True:
-        # send convert command to all DS18B20
-        ds.convert_temp()
-
-        # Wait at least 750ms
-        time.sleep_ms(750)
-
-        measures = []
-        for rom in roms:
-            measures.append(ds.read_temp(rom))
-
+        value = thing.get_value()
         try:
-            code = thingspeak.post_fields(measures)
-            if code != 200:
-                error += 1
+            if mqtt_topic != '':
+                mqtt_client.publish(mqtt_topic, str(value))
+
+            if ths_apikey != '':
+                code = thingspeak.post(field1 = value)
+                if code != 200:
+                    error += 1
         except:
             error += 1
         sent += 1
-        echo("Temp:{:.1f}".format(measures[0]))
-        echo("E/S {}/{}".format(error, sent), lineno=1)
+        disp.echo("V:{:.1f}".format(value))
+        disp.echo("E/S {}/{}".format(error, sent), lineno=1)
         time.sleep(60)
 
 ################
 # config thread
 
 def config_thread():
+    print("config_thread start")
+
+    global disp
+    from jsonconfig import JsonConfig
     from configserver import ConfigServer
+
     httpd = ConfigServer(JsonConfig())
+    disp.echo("Open 192.168.4.1", lineno=1)
     httpd.serv()
 
 ################
 # Boot settings
 
+import time
+import _thread
+from connection import WiFi
+from jsonconfig import JsonConfig
+from machine import Pin, SoftI2C
+
+conf = JsonConfig()
 boot = Pin(0, Pin.IN, Pin.PULL_UP)
+i2c  = SoftI2C(scl=Pin(22), sda=Pin(21))
+
+disp = PinotDisplay(i2c = i2c, addr = 0x3c)
 mode = 'station'
 wifi = WiFi()
-conf = JsonConfig(name = 'settings')
+
 wait_on_boot = 5 * 1000 # ms
 
 # Check boot button for 5seconds. if pressed, falls into AP mode.
 while wait_on_boot > 0:
     if wait_on_boot % 1000 == 0:
-        echo("BOOT BTN to AP {}".format(wait_on_boot // 1000))
+        disp.echo("BOOT BTN to AP {}".format(wait_on_boot // 1000))
     if boot.value() == 0:
         mode = "ap"
         break
     time.sleep_ms(200)
     wait_on_boot -= 200
 
-echo("Mode: {}".format(mode))
+disp.echo("Mode: {}".format(mode))
 
 if mode == 'station':
     # start station with fallback to AP mode
     wifi.start(conf)
     if not wifi.isconnected():
-        echo("Wi-Fi conn failed")
+        disp.echo("Wi-Fi failed")
         mode = 'ap'
 else:
     wifi.start_ap()
@@ -99,6 +162,5 @@ try:
         _thread.start_new_thread(main_thread, ())
     else:
         _thread.start_new_thread(config_thread, ())
-        echo("Open 192.168.4.1", lineno=1)
 except:
-    echo("Fatal Error {}".format(mode), lineno=2)
+    disp.echo("Fatal Error {}".format(mode), lineno=2)
