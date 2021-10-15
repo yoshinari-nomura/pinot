@@ -1,0 +1,338 @@
+#!/usr/bin/env ruby
+
+# See some comments in the makepfn command about PFN format.
+
+module Pinot
+  class Font
+    class FontHeader
+      attr_reader :signature, :version, :fontname
+
+      def self.size; 16; end
+
+      def self.parse(bytes)
+        new.parse(bytes)
+      end
+
+      def parse(bytes)
+        @signature, @version, @fontname = bytes.unpack("a7Ca8")
+        return self
+      end
+
+      def to_bin
+        [signature, version, fontname].pack("a7Ca8")
+      end
+
+      def to_s
+        "Signature: #{signature}, " +
+          "Version: #{version}, " +
+          "Fontname: #{fontname}"
+      end
+    end
+
+    class BlockHeader
+      attr_reader :width, :height, :codepoint_size, :attribute, :num_glyphs
+
+      def self.size; 6; end
+
+      def self.parse(bytes)
+        new.parse(bytes)
+      end
+
+      def parse(bytes)
+        @width, @height, @codepoint_size,
+        @attribute, @num_glyphs = bytes.unpack("CCCCv")
+        return self
+      end
+
+      def to_bin
+        [width, height, attribute, num_glyphs].pack("CCCCv")
+      end
+
+      def to_s
+        "Width: #{width}, " +
+          "Height: #{height}, " +
+          "CP_size: #{codepoint_size}, " +
+          "Attribute: #{attribute}, " +
+          "Characters: #{num_glyphs}"
+      end
+
+      def glyph_size
+        (width * height + 7) / 8  + codepoint_size
+      end
+    end
+
+    ################################################################
+    class Bitmap
+      attr_reader :bitmap, :height, :width
+
+      def self.parse(bytes, metrics)
+        new.parse(bytes, metrics)
+      end
+
+      # HEX_STRINGS is an array of hexadecimal strings.
+      # Each element represents a single horizontal row of the bitmap.
+      # Samely with BDF format, if WIDTH is not a multiple of 8,
+      # each row will have an additional zero padding.
+      def self.parse_bdf(hex_strings, width)
+        @width, @height = width, hex_strings.length
+
+        # Remove zero-padding from each row and
+        # concatinate all bits.
+        bits = hex_strings.map {|hline|
+          ("%0#{hline.length * 4}b" % hline.hex)[0, width]
+        }.join
+
+        # Add "0"s to make bits.length % 8 == 0
+        n = bits.length
+        bits += "0" * ((n + 7) / 8 * 8 - n)
+
+        # Split bits into bytes and make array of uint8
+        @bitmap = bits.scan(/.{8}/).map {|b| b.to_i(2)}
+      end
+
+      def parse(bytes, metrics)
+        @bitmap = bytes.unpack("C*")
+        @width, @height = metrics.width, metrics.height
+        return self
+      end
+
+      def to_bin
+        @bitmap.pack("C*")
+      end
+
+      def to_s
+        (0 ... height).map {|y|
+          (0 ... width).map {|x|
+            if pixel?(x, y) then "*" else "." end
+          }.join
+        }.join("\n")
+      end
+      alias_method :banner, :to_s
+
+      def pixel?(x, y)
+        i = x + y * width
+        @bitmap[i / 8] & (1 << (7 - i % 8)) != 0
+      end
+
+      def size
+        @bitmap.length
+      end
+    end
+
+    ################################################################
+    class Glyph
+      def self.parse(bytes, metrics)
+        new.parse(bytes, metrics)
+      end
+
+      # def initialize(char, hex_strings, width)
+      #   @char, @bitmap = char, Bitmap.new(hex_strings, width)
+      # end
+
+      def banner
+        "Char: '#{char}', Codepoint: #{codepoint} (#{"0x%08x" % codepoint})\n" +
+          @bitmap.banner
+      end
+
+      def parse(bytes, metrics)
+        @width, @height = metrics.width, metrics.height
+        @codepoint, bm = bytes.unpack("?Cv?V"[metrics.codepoint_size] + "a*")
+        @bitmap = Bitmap.parse(bm, metrics)
+        return self
+      end
+
+      # Return character codepoint in UTF-32LE.
+      def codepoint
+        @codepoint ||= @char.encode("UTF-32LE").unpack("V").first
+      end
+
+      def char
+        @char ||= [@codepoint].pack("V").force_encoding("UTF-32LE").encode("UTF-8")
+      end
+
+      def codepoint_size
+        return 1 if codepoint <= 0xff
+        return 2 if codepoint <= 0xffff
+        return 4
+      end
+
+      def width;  @bitmap.width;  end
+      def height; @bitmap.height; end
+
+      def size
+        codepoint_size + @bitmap.size
+      end
+
+      def to_bin
+        label = "?Cv?V"[codepoint_size]
+        [codepoint].pack(label) + @bitmap.to_s
+      end
+    end
+
+    ################################################################
+    def initialize(pfn_image_file)
+      @pfn_image = pfn_image_file
+    end
+
+    def banner(string)
+      string.each_char do |char|
+        width, height, bitmap = glyph(char)
+        if bitmap
+          bitmap.unpack("B*").first.scan(/.{#{width}}/).each do |c|
+            puts c.gsub('0', '.').gsub('1', '*')
+          end
+        end
+      end
+    end
+
+    def dump
+      File.open(@pfn_image) do |pfn|
+        puts FontHeader.parse(pfn.read(FontHeader.size)).to_s
+        loop do
+          block_header = pfn.read(BlockHeader.size) || break
+          bh = BlockHeader.parse(block_header)
+          puts bh
+          for i in 1 .. bh.num_glyphs do
+            bytes = pfn.read(bh.glyph_size)
+            glyph = Glyph.parse(bytes, bh)
+            puts "#{i}. #{glyph.banner}"
+          end
+        end
+      end
+    end
+
+    def glyph(char)
+      find_bitmap(char)
+    end
+
+    private
+
+    def find_bitmap(char)
+      codepoint = utf8_to_codepoint(char)
+      puts "find_bitmap: #{codepoint} (#{char})"
+
+      File.open(@pfn_image) do |file|
+        file.seek(16) # skip header
+        pos = 16
+
+        loop do
+          block_header = file.read(6)
+          return nil unless block_header
+          pos += 6
+
+          width, height, codepoint_size,
+          attribute, num_chars = block_header.unpack("CCCCv")
+
+          bitmap_size = (width * height + 7) / 8  + codepoint_size
+          label = "?Cv?V"[codepoint_size]
+
+          head = pos
+          tail = head + bitmap_size * (num_chars - 1)
+
+          head_codepoint = file.read(codepoint_size).unpack(label).first
+          file.seek(tail)
+          tail_codepoint = file.read(codepoint_size).unpack(label).first
+
+          puts "font block #{tail_codepoint}-#{tail_codepoint}" if $DEBUG
+
+          file.seek(tail + bitmap_size)
+          pos = tail + bitmap_size
+
+          return nil if codepoint < head_codepoint
+          next if tail_codepoint < codepoint
+
+          bitmap = find_bitmap_in_block(
+            file, codepoint, codepoint_size, bitmap_size, head, tail
+          )
+          return [width, height, bitmap]
+        end
+      end
+    end
+
+    def find_bitmap_in_block(file, target, codepoint_size, bitmap_size, head_pos, tail_pos)
+      char = codepoint_to_utf8(target)
+      puts "find_bitmap_in_block: #{target} (#{char})"
+
+      head = 0
+      tail = (tail_pos - head_pos) / bitmap_size
+
+      label = "?Cv?V"[codepoint_size]
+
+      file.seek(head_pos)
+      code1 = file.read(codepoint_size).unpack(label).first
+      file.seek(tail_pos)
+      code2 = file.read(codepoint_size).unpack(label).first
+      # puts "code1 #{code1} code2 #{code2}"
+
+      while (head <= tail)
+        center = (head + tail) / 2
+
+        file.seek(head_pos + bitmap_size * center)
+        code = file.read(codepoint_size).unpack(label).first
+        glyph = file.read(bitmap_size - codepoint_size)
+
+        if code < target
+          head = center + 1
+        elsif code > target
+          tail = center - 1
+        else
+          return glyph
+        end
+      end
+    end
+
+    # 1st byte mask:
+    # | 1st byte            | prefix mask      | value mask       |
+    # |---------------------+------------------+------------------|
+    # | 0xxxxxxx (0x00 + x) | 1000_0000 (0x80) | 0111_1111 (0x7f) |
+    # | 110xxxxx (0xc0 + x) | 1110_0000 (0xe0) | 0001_1111 (0x1f) |
+    # | 1110xxxx (0xe0 + x) | 1111_0000 (0xf0) | 0000_1111 (0x0f) |
+    # | 11110xxx (0xf0 + x) | 1111_1000 (0xf8) | 0000_0111 (0x07) |
+    #
+    def utf8_to_codepoint(char)
+      b1, *b234 = char.unpack("C*")
+      return utf8_to_code234(b1 & 0x7f, b234) if b1 & 0x80 == 0x00
+      return utf8_to_code234(b1 & 0x1f, b234) if b1 & 0xe0 == 0xc0
+      return utf8_to_code234(b1 & 0x0f, b234) if b1 & 0xf0 == 0xe0
+      return utf8_to_code234(b1 & 0x07, b234) if b1 & 0xf8 == 0xf0
+    end
+
+    # 2nd, 4rd, 4th byte mask:
+    # | nth byte            | prefix mask      | value mask       |
+    # |---------------------+------------------+------------------|
+    # | 10xxxxxx (0x80 + x) | 1100_0000 (0xc0) | 0011_1111 (0x3f) |
+    #
+    def utf8_to_code234(b1, b234)
+      code = b1
+
+      b234.each do |bx|
+        return nil if bx & 0xc0 != 0x80
+        code = (code << 6) | (bx & 0x3f)
+      end
+      return code
+    end
+
+    def codepoint_to_utf8(codepoint)
+      [codepoint].pack("V").force_encoding("UTF-32LE").encode("UTF-8")
+    end
+  end
+end
+
+################################################################
+## main
+
+if $PROGRAM_NAME == __FILE__
+  fontfile = ARGV.shift
+
+  unless fontfile
+    STDERR.puts("dumppfn FONTFILE [BANNER_STRING]")
+    STDERR.puts("  Banner all glyphs if no BANNER_STRING is given")
+    exit 1
+  end
+
+  if ARGV[0]
+    Pinot::Font.new(fontfile).banner(ARGV.shift)
+  else
+    Pinot::Font.new(fontfile).dump
+  end
+end

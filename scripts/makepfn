@@ -1,0 +1,264 @@
+#!/usr/bin/env ruby
+#
+# Convert multiple BDF files into Pinot Font Format.
+#
+#* Usage
+#  : makepfn shnm7x14r.bdf shnmk14.bdf > shnmk14u.pfn
+#
+#* Pinot font (PFN) format
+#
+#  : font-file  = font-header font-block{1,}
+#  : font-block = block-header glyph-entry{num_glyphs}
+#
+#** font header (16 bytes):
+#   | size | field name | example    |
+#   |------+------------+------------|
+#   |    7 | signature  | "PINOTFN"  |
+#   |    1 | version    | 0x01       |
+#   |    8 | fontname   | "shnmk14u" |
+#
+#** block header (6 bytes):
+#   | size | field name     | description                                |
+#   |------+----------------+--------------------------------------------|
+#   |    1 | width          | glyph width                                |
+#   |    1 | height         | glyph height                               |
+#   |    1 | codepoint_size | size of codepoint in glyph entires (1/2/4) |
+#   |    1 | attribute      | block attribute (currently unused)         |
+#   |    2 | num_glyphs     | number of glyph entries in the block       |
+#
+#** glyph entry (codepoint_size + (width * height + 7 ) / 8 bytes):
+#   | size                     | field name | example           |
+#   |--------------------------+------------+-------------------|
+#   | codepoint_size           | codepoint  | 0x41 (UTF-32 'A') |
+#   | (width * height + 7) / 8 | bitmap     | 0b00110000....    |
+#
+#   example: bitmap of 7x14 font needs 98bits
+#   → 104 bits (13 bytes) to fit byte bound.
+#
+#** Note
+#   1) All numbers are little endian
+#   2) Glyph entries is sorted by codepoint across the font block.
+#   3) All glyphs in a single font block have the same width and height.
+#
+module Pinot
+
+  ################################################################
+  class Bitmap
+    attr_reader :bitmap, :width, :height
+
+    def initialize(bitmap, width, height)
+      @bitmap, @width, @height = bitmap, width, height
+    end
+
+    def banner
+      (0 ... height).map {|y|
+        (0 ... width).map {|x|
+          if pixel?(x, y) then "#" else "." end
+        }.join
+      }.join("\n")
+    end
+
+    def dump
+      @bitmap.pack("C*")
+    end
+
+    def pixel?(x, y)
+      i = x + y * width
+      @bitmap[i / 8] & (1 << (7 - i % 8)) != 0
+    end
+  end
+
+  ################################################################
+  class Glyph
+    attr_reader :char
+
+    def initialize(char, bitmap)
+      @char, @bitmap = char, bitmap
+    end
+
+    def banner
+      "Char: '#{char}', Codepoint: #{codepoint} " +
+        "(#{"0x%08x" % codepoint})\n" + @bitmap.banner
+    end
+
+    # Return character codepoint in UTF-32LE.
+    def codepoint
+      @codepoint ||= @char.encode("UTF-32LE").unpack("V").first
+    end
+
+    def codepoint_size
+      return 1 if codepoint <= 0xff
+      return 2 if codepoint <= 0xffff
+      return 4
+    end
+
+    def dump
+      [codepoint].pack("?Cv?V"[codepoint_size]) + @bitmap.dump
+    end
+
+    def height; @bitmap.height; end
+    def width;  @bitmap.width;  end
+    def pixel?(x, y); @bitmap.pixel?(x, y); end
+  end
+
+  ################################################################
+  class Font
+    attr_reader :fontname
+
+    def initialize(fontname)
+      raise "fontname.length != 8" if fontname.bytes.length != 8
+      @fontname, @glyphs = fontname, {}
+    end
+
+    def parse_bdf(stream)
+      @glyphs = BDFParser.new(stream).glyphs
+      return self
+    end
+
+    def banner(string = nil)
+      if string
+        string.each_char do |char|
+          glyph = @glyphs[char] || @glyphs["〓"]
+          puts glyph.banner
+        end
+      else
+        each_glyph do |glyph|
+          puts glyph.banner
+        end
+      end
+    end
+
+    def each_glyph
+      @glyphs.values.sort_by {|g| g.codepoint}.each do |glyph|
+        yield glyph
+      end
+    end
+
+    def dump
+      out = "PINOTFN" + "\x01" + @fontname
+      cur_metrics, num_chars, bitmaps = [], 0, ""
+
+      each_glyph do |glyph|
+        new_metrics = [glyph.width, glyph.height, glyph.codepoint_size]
+
+        if cur_metrics != new_metrics
+          # flush current font block and start new font block
+          if num_chars > 0
+            out += (cur_metrics + [0, num_chars]).pack("CCCCv") + bitmaps
+          end
+          cur_metrics, num_chars, bitmaps = new_metrics, 0, ""
+        end
+
+        bitmaps += glyph.dump
+        num_chars += 1
+      end
+
+      # flush the last font block
+      if num_chars > 0
+        out += (cur_metrics + [0, num_chars]).pack("CCCCv") + bitmaps
+      end
+
+      return out
+    end
+  end
+
+  ################################################################
+  class BDFParser
+    attr_reader :glyphs
+
+    # XXX: FONTBOUNDINGBOX, BBX is not supported.
+    def initialize(stream)
+      @glyphs = {}
+
+      while line = stream.gets
+        case line
+        when /^ENCODING +(\d+)/
+          char = jisx0201_0208_to_char($1.to_i, "UTF-8")
+        when /^DWIDTH +(\d+)/
+          width = $1.to_i
+        when /^BITMAP/
+          hex_strings, bitmap_mode = [], true
+        when /^ENDCHAR/
+          if char && !@glyphs[char] || char == '~' || char == '\\'
+            @glyphs[char] = Glyph.new(char, hex_to_bitmap(hex_strings, width))
+          end
+          hex_strings, bitmap_mode = [], false
+        else
+          hex_strings << line.chomp if bitmap_mode
+        end
+      end
+    end
+
+    private
+
+    # HEX_STRINGS is an array of hexadecimal strings.  Each element
+    # represents a single horizontal row of the bitmap.  As is with
+    # BDF format, if WIDTH is not a multiple of 8, each row has an
+    # additional zero padding.
+    #
+    # This function removes zero paddings from each row, and make a
+    # compact array of uint8.
+    #
+    def hex_to_bitmap(hex_strings, width)
+      height = hex_strings.length
+
+      # Remove zero-padding from each row and
+      # concatinate all bits.
+      bits = hex_strings.map {|hline|
+        ("%0#{hline.length * 4}b" % hline.hex)[0, width]
+      }.join
+
+      # Add "0"s to make bits.length % 8 == 0
+      n = bits.length
+      bits += "0" * ((n + 7) / 8 * 8 - n)
+
+      # Split bits into bytes and make an array of uint8
+      bytes = bits.scan(/.{8}/).map {|b| b.to_i(2)}
+      return Bitmap.new(bytes, width, height)
+    end
+
+    # Convert JISX0201 or 0208 into ENCODING (UTF-8)
+    def jisx0201_0208_to_char(code, encoding = "UTF-8")
+      if code > 255
+        # assume plain JISX0208: convert to EUC-JP
+        b1, b2 = (code/256) | 0x80, (code%256) | 0x80
+        str = [b1, b2].pack("CC").force_encoding("EUC-JP")
+      else
+        # assume JISX0201: convert to SHIFT_JIS if printable
+        if 0x20 <= code && code <= 0x7e || 0xa1 <= code && code <= 0xdf
+          str = [code].pack("C").force_encoding("SHIFT_JIS")
+        end
+      end
+      str.encode(encoding) if str
+    end
+  end
+end
+
+################################################################
+## main
+
+while /^-/ =~ ARGV[0]
+  opt = ARGV.shift
+  case opt
+  when /^-n/
+    fontname = ARGV.shift
+  when /^-d/
+    $DEBUG = true
+  end
+end
+
+unless fontname
+  STDERR.puts("mkpfn -n FONTNAME jisx0201.bdf jisx0208.bdf > FONTNAME.pfn")
+  STDERR.puts("  FONTNAME should be 8-byte ASCII string.")
+  exit 1
+end
+
+pfn = Pinot::Font.new(fontname).parse_bdf(ARGF)
+
+if $DEBUG
+  pfn.banner(" ABC}~漢字ｲﾛﾊﾎﾟ｡¢§÷Α♪｝￣￥")
+  puts "--- #{pfn.fontname} -------------------------------------"
+  pfn.banner
+else
+  print pfn.dump
+end
