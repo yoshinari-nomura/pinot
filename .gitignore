@@ -137,7 +137,13 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# tmp files
+*~
+.#*
+
 # site-local
 backup/
 attic/
 vendor/
+test/
+fonts/
