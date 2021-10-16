@@ -146,4 +146,4 @@ backup/
 attic/
 vendor/
 test/
-fonts/
+/fonts
