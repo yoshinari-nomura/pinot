@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import binascii
 import hashlib
@@ -8,13 +7,6 @@ import os
 import sys
 
 class DigestDirtree:
-    """
-    Calculate Digest of Files
-    """
-
-    def __init__(self):
-        pass
-
     def isdir(self, path):
         return os.stat(path)[0] & 0x4000 != 0
 
@@ -23,10 +15,10 @@ class DigestDirtree:
 
         if self.isdir(path):
             path = re.sub('/$', '', path) + '/'
-            for child in os.listdir(path):
+            for child in sorted(os.listdir(path)):
                 cpath = path + child
                 hash.update(self.digest(cpath))
-                hash.update(cpath.encode())
+                hash.update(child.encode())
         else:
             with open(path, 'rb') as file:
                 while True:
@@ -40,9 +32,5 @@ class DigestDirtree:
         return sha1
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
-        dir = sys.argv[1]
-    else:
-        dir = '/'
+    dir = sys.argv[1] if len(sys.argv) > 1 else '/'
     DigestDirtree().digest(dir)

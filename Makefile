@@ -3,6 +3,8 @@
 # Yoshinari Nomura
 #
 
+.PHONY: backup fonts
+
 AMPY_PORT  = /dev/ttyUSB0
 AMPY_BAUD  = 115200
 AMPY_DELAY = 0

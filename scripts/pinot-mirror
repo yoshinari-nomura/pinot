@@ -6,7 +6,7 @@
 #   -d        Show SHA1 digests for each file (for debug).
 #   -h        Show this message.
 #   -p PORT   Set name of serial PORT for connected board.
-#   SRC, DEST Existing local directory or "ampy:"
+#   SRC, DEST: Existing local directory or "ampy:"
 #
 # CAVEAT: pinot-mirror removes extraneous files from DEST.
 #
@@ -173,7 +173,7 @@ function usage() {
   echo '  -d        Show SHA1 digests for each file (for debug).'
   echo '  -h        Show this message.'
   echo '  -p PORT   Set name of serial PORT for connected board.'
-  echo '  SRC, DEST Existing local directory or "ampy:"'
+  echo '  SRC, DEST: Existing local directory or "ampy:"'
   echo ''
   echo 'CAVEAT: pinot-mirror removes extraneous files from DEST.'
 } >&2
