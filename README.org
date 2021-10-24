@@ -17,8 +17,12 @@
 
 * What is pinot?
   pinot is a project-template for IoT devices built with ESP32 +
-  MicroPython. It simplifys the initial setup of the device before
-  connecting it to the Internet.
+  MicroPython. It simplifys:
+
+  1) Initial setup of the device before connecting it to the Internet
+  2) File synchronization between your dev PC and MicroPython target board
+  3) Installation of small UCS-based Japanese fonts
+     + see [[https://zenn.dev/nom/articles/20211016-micropython-code-to-display-utf8-kanji][MicroPython だけで UTF-8 の漢字を表示]] for details
 
   You can get the latest version from:
   + https://github.com/yoshinari-nomura/pinot

@@ -15,10 +15,14 @@
 
 * pinot とは
   pinot は，ESP32 + MicroPython で作る IoT デバイスのためのプロジェクト
-  テンプレートです．主な役割は，デバイスをインターネット接続する前の初期
-  設定を簡単にすることです．
+  テンプレートです．主な役割は，以下の通りです．
 
-  最新版は以下から入手可能です:
+  1) デバイスを Wi-Fi 接続する前の初期設定を簡単にすること
+  2) 開発時，デバイスへのファイル転送を簡単にすること
+  3) 日本語表示可能な UCS ベースの小さいフォントを提供すること
+     + 参考: [[https://zenn.dev/nom/articles/20211016-micropython-code-to-display-utf8-kanji][MicroPython だけで UTF-8 の漢字を表示]]
+
+  今後増えるかもしれません．最新版は以下から入手可能です:
   + https://github.com/yoshinari-nomura/pinot
 
 * 動作概要
