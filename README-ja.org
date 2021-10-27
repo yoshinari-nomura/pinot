@@ -19,6 +19,7 @@
 
   1) デバイスを Wi-Fi 接続する前の初期設定を簡単にすること
   2) 開発時，デバイスへのファイル転送を簡単にすること
+     + 参考:  [[https://zenn.dev/nom/articles/20211024-easy-sync-with-micropython-filesystem][MicroPython のファイルを気軽に一括同期する]]
   3) 日本語表示可能な UCS ベースの小さいフォントを提供すること
      + 参考: [[https://zenn.dev/nom/articles/20211016-micropython-code-to-display-utf8-kanji][MicroPython だけで UTF-8 の漢字を表示]]
 
