@@ -48,15 +48,7 @@ def codepoint_to_size(codepoint):
 class Font:
     def __init__(self, font_filename):
         self.font_filename = font_filename
-
-    def glyph(self, char):
-        """Find font Glyph by UTF-8 char
-        """
-
-        codepoint = utf8_to_codepoint(char)
-
-        if codepoint is None:
-            return None
+        self.block_headers = []
 
         with open(self.font_filename, 'rb') as fp:
             fp.seek(16) # Skip header
@@ -66,7 +58,7 @@ class Font:
                 block_header = fp.read(6)
 
                 if len(block_header) != 6:
-                    return None
+                    break
 
                 width, height, codepoint_size, attribute, num_chars = \
                     unpack('<BBBBH', block_header)
@@ -85,6 +77,20 @@ class Font:
                 fp.seek(tail + entry_size)
                 pos = tail + entry_size
 
+                self.block_headers.append([head_codepoint, tail_codepoint, head, tail, entry_size, width, height])
+
+    def glyph(self, char):
+        """Find font Glyph by UTF-8 char
+        """
+
+        codepoint = utf8_to_codepoint(char)
+
+        if codepoint is None:
+            return None
+
+        with open(self.font_filename, 'rb') as fp:
+            for block_header in self.block_headers:
+                head_codepoint, tail_codepoint, head, tail, entry_size, width, height = block_header
                 if codepoint < head_codepoint:
                     return None
                 elif tail_codepoint < codepoint:
