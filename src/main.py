@@ -12,17 +12,14 @@ class PinotDisplay:
         Initialize a display.
         """
 
-        from ssd1306 import SSD1306_I2C
+        self.disp = None
 
-        if i2c == None:
-            raise ValueError('I2C required')
-        self.i2c  = i2c
-        self.addr = addr
-
-        if addr is not None:
-            self.disp = SSD1306_I2C(128, 32, i2c, addr)
-        else:
-            self.disp = SSD1306_I2C(128, 32, i2c)
+        if i2c is not None:
+            from ssd1306 import SSD1306_I2C
+            if addr is not None:
+                self.disp = SSD1306_I2C(128, 32, i2c, addr)
+            else:
+                self.disp = SSD1306_I2C(128, 32, i2c)
 
     def echo(self, msg, lineno=0):
         print(msg)
@@ -75,7 +72,7 @@ def main_thread():
     ths_apikey = (config.get('thingspeak_apikey') or '')
     mqtt_topic = (config.get('mqtt_pub_topic') or '')
 
-    thing = PinotSensor(i2c)
+    thing = PinotSensor(i2c, 0x23)
 
     if mqtt_topic != '':
         mqtt_client = mqtt.mqtt_create_client(config)
@@ -127,9 +124,13 @@ from machine import Pin, SoftI2C
 
 conf = JsonConfig()
 boot = Pin(0, Pin.IN, Pin.PULL_UP)
-i2c  = SoftI2C(scl=Pin(22), sda=Pin(21))
 
-disp = PinotDisplay(i2c = i2c, addr = 0x3c)
+try:
+    i2c  = SoftI2C(scl=Pin(22), sda=Pin(21))
+    disp = PinotDisplay(i2c = i2c, addr = 0x3c)
+except:
+    disp = PinotDisplay()
+
 mode = 'station'
 wifi = WiFi()
 
