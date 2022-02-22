@@ -8,17 +8,21 @@
 function usage() {
   echo "Show pinot hostname of the board"
   echo ""
-  echo "Usage: pinot-hostname [-p PORT]"
-  echo "  -p PORT   Set name of serial PORT for connected board."
+  echo "Usage: pinot-hostname [-v] [-p PORT]"
+  echo "  -p PORT Set name of serial PORT for connected board."
+  echo "  -v      Verbose mode."
 } >&2
 
-while getopts "dhp:" flag
+OPT_VERBOSE=False
+
+while getopts "dhp:v" flag
 do
   case $flag in
     # getopts sets '?' to flag on error.
     \?|h) OPT_ERROR=1 ;;
     d)    DEBUG=1 ;;
     p)    OPT_PORT="$OPTARG" ;;
+    v)    OPT_VERBOSE=True ;;
   esac
 done
 shift $(( $OPTIND - 1 ))
@@ -37,6 +41,16 @@ fi
 ampy run <(cat <<EOF
 import network
 import binascii
-print('pinot-' + str(binascii.hexlify(network.WLAN().config('mac'))[6:], 'ascii'))
+verbose = $OPT_VERBOSE
+nic = network.WLAN()
+cnf = nic.ifconfig()
+mac = nic.config('mac')
+hostname = 'pinot-' + str(binascii.hexlify(mac)[6:], 'ascii')
+if verbose:
+  print('inet', cnf[0], 'netmask', cnf[1], 'gateway', cnf[2])
+  print('mac:', str(binascii.hexlify(mac, ':'), 'ascii'))
+  print('hostname:', hostname)
+else:
+  print(hostname)
 EOF
      ) | sed 's/\r$//'
