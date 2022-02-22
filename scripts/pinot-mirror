@@ -37,9 +37,9 @@ function fscmd_mkdir() {
   local dst_entry="$1"
 
   if isampy "$dst_entry"; then
-    echo "ampy mkdir --exists-okay $(strip_ampy $dst_entry)"
+    echo "ampy mkdir --exists-okay '$(strip_ampy "$dst_entry")'"
   else
-    echo "mkdir -p $dst_entry"
+    echo "mkdir -p '$dst_entry'"
   fi
 }
 
@@ -47,9 +47,9 @@ function fscmd_rmrf() {
   local dst_entry="$1"
 
   if isampy "$dst_entry"; then
-    echo "ampy rmdir --missing-okay $(strip_ampy $dst_entry)"
+    echo "ampy rmdir --missing-okay '$(strip_ampy "$dst_entry")'"
   else
-    echo "rm -rf $dst_entry"
+    echo "rm -rf '$dst_entry'"
   fi
 }
 
@@ -57,13 +57,13 @@ function fscmd_cp() {
   local src_entry="$1" dst_entry="$2"
 
   if isampy "$src_entry"; then
-    echo "ampy get $(strip_ampy $src_entry) $dst_entry"
+    echo "ampy get '$(strip_ampy "$src_entry")' '$dst_entry'"
 
   elif isampy "$dst_entry"; then
-    echo "ampy put $src_entry $(strip_ampy $dst_entry)"
+    echo "ampy put '$src_entry' '$(strip_ampy "$dst_entry")'"
 
   else
-    echo "cp -p $src_entry $dst_entry"
+    echo "cp -p '$src_entry' '$dst_entry'"
   fi
 }
 
@@ -71,9 +71,9 @@ function fscmd_rm() {
   local dst_entry="$1"
 
   if isampy "$dst_entry"; then
-    echo "ampy rm $(strip_ampy $dst_entry)"
+    echo "ampy rm '$(strip_ampy "$dst_entry")'"
   else
-    echo "rm -f $dst_entry"
+    echo "rm -f '$dst_entry'"
   fi
 }
 
@@ -100,10 +100,10 @@ function make_file_digests() {
 
 function make_diff_table() {
   local src="$1" dst="$2"
-
-  join  -j 2 -a 1 -a 2 -e "$NONE" -o '1.1 2.1 0' \
-        <(make_file_digests "$src" | sort -k 2 | sed 's! [.]/! /!') \
-        <(make_file_digests "$dst" | sort -k 2 | sed 's! [.]/! /!')
+  local tab='	'
+  join  -t "$tab" -j 2 -a 1 -a 2 -e "$NONE" -o '1.1 2.1 0' \
+        <(make_file_digests "$src" | sort -k 2 | sed 's! [.]/! /!;s/  */\t/') \
+        <(make_file_digests "$dst" | sort -k 2 | sed 's! [.]/! /!;s/  */\t/')
 }
 
 function isdir() {
