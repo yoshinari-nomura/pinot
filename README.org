@@ -55,8 +55,19 @@
    Do not press BOOT button even before the power-on.  Press BOOT button
    within 1 to 5 seconds *after* the power-on.
 
-* Files from ohter projects
-  + lib/sht31.py ::
+* Files derived from ohter projects
+  + src/lib/scd30.py ::
+    https://github.com/agners/micropython-scd30
+  + src/lib/sht31.py ::
     https://github.com/kfricke/micropython-sht31
-  + lib/ssd1306.py ::
+  + src/lib/ssd1306.py ::
     https://github.com/micropython/micropython/blob/master/drivers/display/ssd1306.py
+  + src/lib/st7789py.py ::
+    https://github.com/russhughes/st7789py_mpy
+  + src/lib/ili9341.py ::
+    https://github.com/tab4moji/M5StackCoreLCD
+  + src/lib/umqtt ::
+    https://github.com/fizista/micropython-umqtt.robust2
+    https://github.com/fizista/micropython-umqtt.simple2
+  + src/lib/ST7735.py ::
+    https://github.com/boochow/MicroPython-ST7735

@@ -31,11 +31,11 @@
    pinot は，デバイス上に書換可能な不揮発のファイルシステムを持っていて，
    ~/config/settings.json~ に Wi-Fi やその他の設定情報を保存できます．
 
-   pinot に電源を投入すると， ~/config/settings.json~ に従って，Wi-Fi に
+   pinot に電源を投入すると， ~/config/settings.json~ に従って Wi-Fi に
    接続しようとします．
 
-   Wi-Fi が未設定か接続に失敗した場合には，自身が Wi-Fi のアクセスポイントと
-   設定用の Web サーバになります．
+   Wi-Fi が未設定か接続に失敗した場合には，自身が Wi-Fi のアクセスポイントになって
+   設定用の Web サーバを起動します．
 
    PC の Web ブラウザ等から下記アクセスポイントに接続して設定変更が可能です．
    (SSID の xxxxxx の部分は，デバイスによって異なります)
@@ -44,17 +44,28 @@
    : 設定用 URL: http://192.168.4.1/
 
 ** Wi-Fi の再設定
-   Wi-Fi を既に設定済みの場合，設定済のアクセスポイントに自動で接続して
-   しまうので，pinot をアクセスポイントモードにできません．
+   電源投入後 5秒以内に pinot の BOOT ボタン (GPIO0)
+   を押すことで，設定用の Web サーバを起動します．
 
-   そのような場合には，電源投入後 5秒以内に pinot の BOOT ボタン (GPIO0)
-   を押すことで，強制的にアクセスポイントモードにできます．
+   このときの Web サーバは，設定済みの Wi-Fi ネットワークで
+   起動していることに気をつけてください．
 
    BOOT ボタンを押すタイミングは，pinot の電源投入後 1 から 5秒以内です．
-   投入前から押しては駄目です．
+   電源投入前から押しては駄目です．
 
 * 外部プロジェクトのファイル
-  + lib/sht31.py ::
+  + src/lib/scd30.py ::
+    https://github.com/agners/micropython-scd30
+  + src/lib/sht31.py ::
     https://github.com/kfricke/micropython-sht31
-  + lib/ssd1306.py ::
+  + src/lib/ssd1306.py ::
     https://github.com/micropython/micropython/blob/master/drivers/display/ssd1306.py
+  + src/lib/st7789py.py ::
+    https://github.com/russhughes/st7789py_mpy
+  + src/lib/ili9341.py ::
+    https://github.com/tab4moji/M5StackCoreLCD
+  + src/lib/umqtt ::
+    https://github.com/fizista/micropython-umqtt.robust2
+    https://github.com/fizista/micropython-umqtt.simple2
+  + src/lib/ST7735.py ::
+    https://github.com/boochow/MicroPython-ST7735
