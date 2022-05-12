@@ -142,8 +142,10 @@ cython_debug/
 .#*
 
 # site-local
-backup/
 attic/
+backup/
+config/
+fonts/
+libtest/
+src/config/
 vendor/
-test/
-/fonts
