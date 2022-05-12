@@ -1,3 +1,22 @@
+# panel should have:
+#   Panel.width
+#   Panel.height
+#   Panel.glyph(glyph, sx, sy)
+#    or Panel.pixel(x, y, color)
+#   Panel.fill_rect(x1, y1, w, h, color)
+#
+# Optional:
+#   Panel.fill(color)
+#   Panel.show()
+#   Panel.scroll(dy)
+#
+# FBConsole() のための要件
+#  fill(self, color)                  画面をcolorで塗りつぶす (画面消去用)
+#  fill_rect(self, x, y, w, h, color) 塗りつぶした矩形を描く  (行消去用)
+#  scroll(self, dx, dy)               dy ピクセル縦スクロールする (横スクロールは不要)
+#  hline(self, x, y, w, color)        水平線を描く (カーソル表示用)
+#  text(self, char, x, y, color)      1文字描く
+
 class PinotDisplay:
     """
     Interface to small I2C display panel
@@ -6,8 +25,14 @@ class PinotDisplay:
         """
         Initialize a display.
         """
-        self.font = font
         self.panel = panel
+
+        self.font = font
+        self.line_height = font.glyph(' ').height + 1
+
+        self.cx = 0
+        self.cy = 0
+        self.top = 0
 
     def echo(self, msg, lineno = 0):
         print(msg)
@@ -26,31 +51,62 @@ class PinotDisplay:
             except:
                 pass
 
-    def text(self, msg, lineno = 0):
-        if lineno == 0:
-            self.panel.fill(0)
+    def clear(self):
+        self.panel.fill(0)
+        self.cx = 0
+        self.cy = 0
 
-        sx, spc = 0, self.font.glyph(' ')
-        sy = lineno * spc.height
+    def scroll(self, dy):
+        self.panel.scroll(dy, 0)
+        self.top = (self.top + dy) % self.panel.height
 
+    def absolute_y(self, cy):
+        return (self.panel.height - self.top + cy) % self.panel.height
+
+    def line_feed(self):
+        self.cx = 0
+        bottom = (self.cy + self.line_height * 2 - 1) % self.panel.height
+
+        # if wrapped
+        if self.absolute_y(bottom) < self.absolute_y(self.cy):
+            self.scroll(self.absolute_y(bottom) + 1)
+
+        self.cy = (self.cy + self.line_height) % self.panel.height
+        self.panel.fill_rect(0, self.cy,
+                                  self.panel.width, self.line_height,
+                                  0)
+
+    def locate(self, x, y):
+        self.cx = x
+        self.cy = y
+
+    def text(self, msg):
         for char in msg:
             if char == '\n':
-                sx = 0
-                sy += spc.height
+                self.line_feed()
                 continue
 
             glyph = self.font.glyph(char)
+
             if glyph is None:
                 continue
-            self.__put_glyph(sx, sy, glyph)
-            sx += glyph.width
-        self.panel.show()
+
+            if self.cx + glyph.width >= self.panel.width:
+                self.line_feed()
+
+            self.__put_glyph(self.cx, self.cy, glyph)
+            self.cx += glyph.width
+        if callable(getattr(self.panel, "show", None)):
+            self.panel.show()
 
     def __put_glyph(self, sx, sy, glyph):
-        for y in range(0, glyph.height):
-            for x in range(0, glyph.width):
-                pix = glyph.pixel(x, y)
-                self.panel.pixel(sx + x, sy + y, pix)
+        if callable(getattr(self.panel, "glyph", None)):
+            self.panel.glyph(glyph, sx, sy)
+        else:
+            for y in range(0, glyph.height):
+                for x in range(0, glyph.width):
+                    pix = glyph.pixel(x, y)
+                    self.panel.pixel(sx + x, sy + y, pix * 65535)
 
 ################################################################
 ## main
