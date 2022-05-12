@@ -5,9 +5,9 @@
 
 .PHONY: backup fonts
 
-AMPY_PORT  = /dev/ttyUSB0
-AMPY_BAUD  = 115200
-AMPY_DELAY = 0
+export AMPY_PORT  ?= /dev/ttyUSB0
+export AMPY_BAUD  ?= 115200
+export AMPY_DELAY ?= 0
 
 ################################################################
 ## ampy
@@ -29,6 +29,13 @@ diff:
 
 push:
 	@scripts/pinot-mirror src ampy: | sed '/\/config\/.*\.json/d'
+
+push-config:
+	@PINOT_HOSTNAME=$$(scripts/pinot-hostname); \
+	echo "ampy put 'config/$$PINOT_HOSTNAME/settings.json' /config/settings.json"
+
+info:
+	@scripts/pinot-hostname -v
 
 ################################################################
 ## fonts
