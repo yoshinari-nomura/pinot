@@ -123,7 +123,7 @@ class SCD30:
         bint = struct.pack('>H', 1 if enable else 0)
         crc = self.__crc(bint[0], bint[1])
         data = bint + bytes([crc])
-        self.i2c.writeto_mem(self.addr, self.SET_FRC, data, addrsize=16)
+        self.i2c.writeto_mem(self.addr, self.SET_ASC, data, addrsize=16)
 
     def get_forced_recalibration(self):
         bint = self.__read_bytes(self.SET_FRC, 3)
