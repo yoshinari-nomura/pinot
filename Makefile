@@ -25,7 +25,8 @@ digest:
 	@ampy run scripts/digest-files.py
 
 diff:
-	@scripts/pinot-mirror -d src ampy: | sed '/\/config\/.*\.json/d'
+	-@PINOT_HOSTNAME=$$(scripts/pinot-hostname); \
+	diff -ru backup/$$PINOT_HOSTNAME src;
 
 push:
 	@scripts/pinot-mirror src ampy: | sed '/\/config\/.*\.json/d; /'"'"'\/main\.py/d'
