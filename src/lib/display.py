@@ -38,26 +38,33 @@ class PinotDisplay:
         print(msg)
         if self.panel is not None:
             if lineno == 0:
-                self.panel.fill(0)
-            self.panel.text(msg, 0, lineno * 10, 1)
-            self.panel.show()
+                self.clear()
+            # self.panel.text(msg, 0, lineno * 10, 1)
+            self.text(msg)
+            if callable(getattr(self.panel, "show", None)):
+                self.panel.show()
 
     def banner(self, msg, lineno = 0):
-        for char in msg:
-            print(char)
-            try:
-                glyph = self.font.glyph(char)
-                print(glyph.banner())
-            except:
-                pass
+        if self.panel is not None:
+            for char in msg:
+                print(char)
+                try:
+                    glyph = self.font.glyph(char)
+                    print(glyph.banner())
+                except:
+                    pass
 
     def clear(self):
-        self.panel.fill(0)
-        self.cx = 0
-        self.cy = 0
+        if self.panel is not None:
+            self.panel.fill(0)
+            self.cx = 0
+            self.cy = 0
 
     def scroll(self, dy):
-        self.panel.scroll(dy, 0)
+        if callable(getattr(self.panel, "vscroll", None)):
+            self.panel.vscroll(dy)
+        else:
+            self.panel.scroll(dy, 0)
         self.top = (self.top + dy) % self.panel.height
 
     def absolute_y(self, cy):
