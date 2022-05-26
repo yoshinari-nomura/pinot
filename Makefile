@@ -28,7 +28,7 @@ diff:
 	@scripts/pinot-mirror -d src ampy: | sed '/\/config\/.*\.json/d'
 
 push:
-	@scripts/pinot-mirror src ampy: | sed '/\/config\/.*\.json/d'
+	@scripts/pinot-mirror src ampy: | sed '/\/config\/.*\.json/d; /'"'"'\/main\.py/d'
 
 push-config:
 	@PINOT_HOSTNAME=$$(scripts/pinot-hostname); \
