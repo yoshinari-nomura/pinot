@@ -13,6 +13,9 @@ class JsonConfig:
     def dict(self):
         return self._dict
 
+    def get_str(self, key):
+        return (self._dict.get(key) or '')
+
     def get(self, key):
         return self._dict.get(key)
 
