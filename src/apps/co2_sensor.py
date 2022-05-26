@@ -63,29 +63,6 @@ class Display:
 ################
 # Interface to sensors
 
-class PinotSensorBH1750:
-    """
-    Interface to some I2C sensor
-    """
-    def __init__(self, i2c = None, addr = None):
-        """
-        Initialize a sensor.
-        """
-        from bh1750 import BH1750
-
-        if i2c == None:
-            raise ValueError('I2C required')
-        self.i2c  = i2c
-        self.addr = addr
-
-        if addr is not None:
-            self.thing = BH1750(i2c, addr)
-        else:
-            self.thing = BH1750(i2c)
-
-    def get_value(self):
-        return self.thing.lux()
-
 class PinotSensorSCD30:
     """
     Interface to some I2C SCD30 sensor
@@ -107,11 +84,11 @@ class PinotSensorSCD30:
             self.thing = SCD30(i2c, 0x61)
 
     def get_value(self):
+        import time
         while self.thing.get_status_ready() != 1:
             print("Wait for CO2 sensor ready.")
             time.sleep_ms(200)
-        co2, temp, humid = self.thing.read_measurement()
-        return co2
+        return self.thing.read_measurement()
 
 ################
 # Interface to publish
@@ -157,9 +134,14 @@ class PubSub:
     def check_msg(self):
         self.mqtt.check_msg()
 
-    def wait_msg(self):
-        print("MQTT Waiting message")
-        self.mqtt.wait_msg()
+    def is_conn_issue(self):
+        return self.mqtt.is_conn_issue()
+
+    def reconnect(self):
+        return self.mqtt.reconnect()
+
+    def resubscribe(self):
+        return self.mqtt.resubscribe()
 
     def publish(self, value):
         error_count = 0
@@ -182,42 +164,19 @@ class PubSub:
             print("Publish error")
             raise "Publish error"
 
-################
-# Wait boot button pressed until timeout.
-
-def wait_on_boot(disp, timeout_ms = 5000):
-    """Wait boot button pressed until timeout.
-    if pressed, returns 'station' else 'ap'
-    """
-    import time
-    from machine import Pin
-
-    boot = Pin(0, Pin.IN, Pin.PULL_UP)
-    while timeout_ms > 0:
-        if timeout_ms % 1000 == 0:
-            disp.echo("BOOT {}".format(timeout_ms // 1000))
-        if boot.value() == 0:
-            return 'ap'
-        time.sleep_ms(200)
-        timeout_ms -= 200
-
-    return 'station'
-
-################################################################
-# config thread
-
-def config_thread(disp):
-    print("config_thread start")
-
-    from jsonconfig import JsonConfig
-    from configserver import ConfigServer
-
-    httpd = ConfigServer(JsonConfig())
-    disp.echo("Open 192.168.4.1", lineno=1)
-    httpd.serv()
-
 ################################################################
 # main loop thread
+
+def mqtt_callback(topic, msg, retained, duplicate):
+    import beep
+    global disp
+    print((topic, msg))
+    # disp.clear()
+    if msg.startswith('W, '):
+        disp.echo(str(msg.replace('W, ', '', 1), 'utf-8'))
+        beep.Beep().famima()
+    else:
+        disp.echo(str(msg, 'utf-8'))
 
 def main_thread(thing, pubsub, disp):
     import time
@@ -232,30 +191,37 @@ def main_thread(thing, pubsub, disp):
         try:
             value = thing.get_value()
             print("Value:", value)
-            pubsub.publish(value)
+            pubsub.publish('{{"co2": {:.0f}, "temperature": {:.1f}, "humidity": {:.0f}}}'.format(value[0], value[1], value[2]))
         except Exception as e:
             print("Error: value =", value, "error:", str(e))
             error += 1
 
         if value is not None:
-            disp.echo("V:{:.1f}".format(value))
+            disp.echo("V:{:.0f},{:.1f},{:.0f}".format(value[0], value[1], value[2]))
             disp.echo("E/T {}/{}".format(error, trial), lineno = 1)
 
         c = 0
         while c < 60:
-            # pubsub.check_msg()
+            if pubsub.is_conn_issue():
+                while pubsub.is_conn_issue():
+                    pubsub.reconnect()
+                    c += 1
+                    time.sleep(1)
+                else:
+                    pubsub.resubscribe()
+            pubsub.check_msg()
             c += 1
             time.sleep(1)
-            if c % 10 == 0:
-                print("tick:", c)
+
 
 ################################################################
-# Boot and invoke threads
-
-################
-# Setup display
+# main
 
 from machine import Pin, SoftI2C, SPI
+import _thread
+from machine import Pin, PWM
+import time
+from beep import Beep
 
 try:
     i2c = SoftI2C(scl = Pin(22), sda = Pin(21))
@@ -264,58 +230,9 @@ try:
 except:
     disp = Display()
 
-################
-# Check if boot button is pressed
+# disp.clear()
 
-mode = wait_on_boot(disp)
-disp.echo("Mode: {}".format(mode))
+thing = PinotSensorSCD30(i2c)
+pubsub = PubSub(mqtt_callback)
 
-################
-# Setup Wi-Fi
-
-from jsonconfig import JsonConfig
-from connection import WiFi
-
-conf = JsonConfig()
-wifi = WiFi()
-
-if mode == 'station':
-    # start station with fallback to AP mode
-    wifi.start(conf)
-    if not wifi.isconnected():
-        disp.echo("Wi-Fi failed")
-        mode = 'ap'
-else:
-    wifi.start_ap()
-
-################
-# Invoke main thread
-
-import _thread
-from machine import Pin, PWM
-import time
-from beep import Beep
-
-def mqtt_callback(topic, msg):
-    global disp
-    print((topic, msg))
-    disp.echo(str(msg, 'utf-8'), lineno = 1)
-    Beep().mac()
-
-if mode == 'station':
-    thing = PinotSensorSCD30(i2c)
-    pubsub = PubSub(mqtt_callback)
-    _thread.start_new_thread(main_thread, (thing, pubsub, disp))
-else:
-    _thread.start_new_thread(config_thread, (disp, ))
-
-# except:
-#    disp.echo("Fatal Error {}".format(mode), lineno = 2)
-
-def reload(mod):
-    import gc
-    import sys
-    mod_name = mod.__name__
-    del sys.modules[mod_name]
-    gc.collect()
-    return __import__(mod_name)
+_thread.start_new_thread(main_thread, (thing, pubsub, disp))
