@@ -72,6 +72,10 @@ class PinotSensorSCD30:
         Initialize a sensor.
         """
         from scd30 import SCD30
+        from jsonconfig import JsonConfig
+
+        config = JsonConfig()
+        self.asc_settings = (config.get('asc_settings') or '')
 
         if i2c == None:
             raise ValueError('I2C required')
@@ -82,6 +86,9 @@ class PinotSensorSCD30:
             self.thing = SCD30(i2c, addr)
         else:
             self.thing = SCD30(i2c, 0x61)
+
+        print('Setup ASC:',(self.asc_settings=='ON'))
+        SCD30.set_automatic_recalibration(self.thing,(self.asc_settings=='ON'))
 
     def get_value(self):
         import time
