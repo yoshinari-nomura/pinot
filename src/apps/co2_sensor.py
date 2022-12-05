@@ -139,9 +139,13 @@ class PubSub:
             self.thingspeak = ThingSpeak(apikey)
 
     def check_msg(self):
+        if self.mqtt_pub_topic == '':
+            return False
         self.mqtt.check_msg()
 
     def is_conn_issue(self):
+        if self.mqtt_pub_topic == '':
+            return False
         return self.mqtt.is_conn_issue()
 
     def reconnect(self):
@@ -156,14 +160,14 @@ class PubSub:
         if self.mqtt:
             try:
                 print("MQTT publish topic =", self.mqtt_pub_topic)
-                self.mqtt.publish(self.mqtt_pub_topic, str(value))
+                self.mqtt.publish(self.mqtt_pub_topic, '{{"co2": {:.0f}, "temperature": {:.1f}, "humidity": {:.0f}}}'.format(value[0], value[1], value[2]))
             except:
                 print("MQTT publish error")
                 error_count += 1
 
         if self.thingspeak:
             print("Publish to ThingSpeak")
-            if self.thingspeak.post(field1 = value) != 200:
+            if self.thingspeak.post(field1 = value[0],field2 = value[1],field3 =value[2]) != 200:
                 print("ThingSpeak publish error")
                 error_count += 1
 
@@ -198,7 +202,7 @@ def main_thread(thing, pubsub, disp):
         try:
             value = thing.get_value()
             print("Value:", value)
-            pubsub.publish('{{"co2": {:.0f}, "temperature": {:.1f}, "humidity": {:.0f}}}'.format(value[0], value[1], value[2]))
+            pubsub.publish(value)
         except Exception as e:
             print("Error: value =", value, "error:", str(e))
             error += 1
