@@ -237,6 +237,11 @@ end
 ################################################################
 ## main
 
+# For Windows, need to set STDOUT to binary mode to avoid CRLF
+# conversion.
+#
+$stdout.binmode
+
 while /^-/ =~ ARGV[0]
   opt = ARGV.shift
   case opt
